@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using full_text_search.dataloader;
 using full_text_search.models;
+using System.Text.RegularExpressions;
 
 namespace full_text_search.search {
     
@@ -20,9 +21,10 @@ namespace full_text_search.search {
             var watch = System.Diagnostics.Stopwatch.StartNew();
             
             List<Document> results = new List<Document>();
-
             foreach (var document in this.documents) {
-                if (document.Text.Contains(this.searchTerm)) {
+                // Find matches.
+                var match = Regex.IsMatch(document.Text, @"(?i)\b" + this.searchTerm + @"\b(?-i)");
+                if (match) {
                     results.Add(document);
                 }
             }

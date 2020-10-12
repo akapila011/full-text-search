@@ -9,7 +9,7 @@ using full_text_search.models;
 namespace full_text_search.dataloader {
     public static class XmlLoader {
 
-        public static List<Document> LoadDocumentsFromXmlList(string path, string nodeSelector) {
+        public static List<Document> LoadDocumentsFromXmlList(string path, string nodeSelector) { // TODO: use generators
             var watch = System.Diagnostics.Stopwatch.StartNew();
 
             List<Document>  documents = XDocument
