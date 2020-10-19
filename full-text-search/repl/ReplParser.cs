@@ -1,9 +1,17 @@
 ﻿using System;
 using System.Text;
+using full_text_search.cache;
 using full_text_search.exceptions;
+using full_text_search.indices;
 
 namespace full_text_search.repl {
     public class ReplParser {
+
+        public MemoryCache<string, InvertedIndex<string, string>> invertedIndexCache;
+
+        public ReplParser(MemoryCache<string, InvertedIndex<string, string>> invertedIndexCache) {
+            this.invertedIndexCache = invertedIndexCache;
+        }
 
         public void execute(string line) {
             if (string.IsNullOrWhiteSpace(line)) {
@@ -15,7 +23,7 @@ namespace full_text_search.repl {
                 throw new ArgumentException("No command provided");
             }
 
-            var command = tokens[0];
+            var command = tokens[0].ToLower();
             switch (command) {
                 case ReplCommandConstants.EXIT:
                     throw new ReplExitException();
