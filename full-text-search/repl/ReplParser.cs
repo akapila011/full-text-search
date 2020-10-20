@@ -1,15 +1,17 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Text;
 using full_text_search.cache;
 using full_text_search.exceptions;
 using full_text_search.indices;
+using full_text_search.utilities;
 
 namespace full_text_search.repl {
     public class ReplParser {
 
-        public MemoryCache<string, InvertedIndex<string, string>> invertedIndexCache;
+        public MemoryCache<string, InvertedIndex> invertedIndexCache;
 
-        public ReplParser(MemoryCache<string, InvertedIndex<string, string>> invertedIndexCache) {
+        public ReplParser(MemoryCache<string, InvertedIndex> invertedIndexCache) {
             this.invertedIndexCache = invertedIndexCache;
         }
 
@@ -56,12 +58,22 @@ namespace full_text_search.repl {
                 "Use: '>> exit'");
             Console.WriteLine(helpText);
         }
-        private void handleLoadCommand(string[] tokens) {
+        private void handleLoadCommand(string[] tokens) {  // TODO: tokens for force refresh (currently on), walking dir to child files
+            if (tokens.Length < 2) {
+                throw new ArgumentException("No path provided for directory indexing.");
+            }
+
+            var directoryPath = tokens[1];
+            // if (!System.IO.Directory.Exists(directoryPath)) {
+            //     throw new ArgumentException($"The path '{directoryPath}' does not exist.");
+            // }
             
+            var invertedIndex = new InvertedIndex(directoryPath, HashUtilities.CreateMD5Hash(directoryPath));
+            var indexedWordsCount = invertedIndex.BuildIndex();
         }
         
         private void handleSearchCommand(string[] tokens) {
-            
+            // TODO: currently expecting search a directory, should be possible to recursively index, save paths indexed and do a global search
         }
     }
 }

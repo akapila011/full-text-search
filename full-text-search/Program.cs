@@ -13,17 +13,17 @@ namespace full_text_search
     class Program {
         private const int NoOfArgs = 2;
 
-        public MemoryCache<string, InvertedIndex<string, string>> InvertedIndexCache { get; private set; } 
+        public MemoryCache<string, InvertedIndex> InvertedIndexCache { get; private set; } 
         public Program() {
             this.InitializeDependencies();
         }
 
         private void InitializeDependencies() {
-            this.InvertedIndexCache = new MemoryCache<string, InvertedIndex<string, string>>(1000, "InvertedIndexCache");  // TODO" see how to load from config files
+            this.InvertedIndexCache = new MemoryCache<string, InvertedIndex>(1000, "InvertedIndexCache");  // TODO" see how to load from config files
         }
         
         static void Main(string[] args) {
-            Program app = new Program();
+            Program app = new Program(); // TODO: read configs and load dir with saved indexes
             var replParser = new ReplParser(app.InvertedIndexCache);
             
             Console.WriteLine($"Started Full Text Search. Enter '{ReplCommandConstants.HELP}' for command usage, '{ReplCommandConstants.EXIT}' to finish.");

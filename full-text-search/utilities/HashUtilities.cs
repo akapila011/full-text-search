@@ -3,7 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 
 namespace full_text_search.utilities {
-    public static class HasUtilities {
+    public static class HashUtilities {
         
         public static string CreateMD5Hash(string input)
         {
