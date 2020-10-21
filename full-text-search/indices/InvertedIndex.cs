@@ -42,7 +42,19 @@ namespace full_text_search.indices {
         }
 
         public void search(string searchTerm) {  // TODO: will figure away to return results to be used otherwise this function is useless other than prints
+            var watch = System.Diagnostics.Stopwatch.StartNew();
             
+            HashSet<string> resultDocumentIds = new HashSet<string>();
+            var words = Array.ConvertAll(searchTerm.Split(" "), d => d.ToLower());
+            foreach (var word in words) {
+                if (this.index.TryGetValue(word, out var documentValues)) {
+                    resultDocumentIds.UnionWith(documentValues);
+                }
+            }
+
+            watch.Stop();
+            var elapsedMs = watch.ElapsedMilliseconds;
+            Console.WriteLine($"Search for '{searchTerm}' returned {resultDocumentIds.Count} results {elapsedMs} ms"); 
         }
     }
 }

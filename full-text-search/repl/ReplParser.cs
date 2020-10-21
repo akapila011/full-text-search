@@ -59,21 +59,51 @@ namespace full_text_search.repl {
             Console.WriteLine(helpText);
         }
         private void handleLoadCommand(string[] tokens) {  // TODO: tokens for force refresh (currently on), walking dir to child files
+            var watch = System.Diagnostics.Stopwatch.StartNew();
             if (tokens.Length < 2) {
                 throw new ArgumentException("No path provided for directory indexing.");
             }
 
             var directoryPath = tokens[1];
+            var directoryPathHash = HashUtilities.CreateMD5Hash(directoryPath);
+            Console.WriteLine($"directoryPathHash = {directoryPathHash}");
             // if (!System.IO.Directory.Exists(directoryPath)) {
             //     throw new ArgumentException($"The path '{directoryPath}' does not exist.");
             // }
+            Console.WriteLine($"Indexing directory '{directoryPath}' started at {DateTime.Now}");
+            var invertedIndex = new InvertedIndex(directoryPath, directoryPathHash);
+            invertedIndex.BuildIndex();
+
+            this.invertedIndexCache.set(directoryPathHash, invertedIndex);  // save to memory, force overwrite
             
-            var invertedIndex = new InvertedIndex(directoryPath, HashUtilities.CreateMD5Hash(directoryPath));
-            var indexedWordsCount = invertedIndex.BuildIndex();
+            watch.Stop();
+            var elapsedMs = watch.ElapsedMilliseconds;
+            Console.WriteLine($"Indexed directory '{directoryPath}' in {elapsedMs} ms");
         }
         
         private void handleSearchCommand(string[] tokens) {
+            var watch = System.Diagnostics.Stopwatch.StartNew();
             // TODO: currently expecting search a directory, should be possible to recursively index, save paths indexed and do a global search
+            if (tokens.Length < 2) {
+                throw new ArgumentException("No search term provided while searching");
+            }
+
+            var searchTerm = tokens[1];  // TODO: will not work for multiple word searches
+            if (tokens.Length < 3) {
+                throw new ArgumentException("No directory path provided for search");
+            }
+            var directoryPath = tokens[2];
+            var directoryPathHash = HashUtilities.CreateMD5Hash(directoryPath);
+
+            var invertedIndex = this.invertedIndexCache.get(directoryPathHash);
+            Console.WriteLine($"directoryPathHash = {directoryPathHash}, invertedIndex != null {invertedIndex!=null} ");
+            if (invertedIndex != null) {
+                invertedIndex?.search(searchTerm);
+            }
+            // TODO: load if not indexed (with option)
+            watch.Stop();
+            var elapsedMs = watch.ElapsedMilliseconds;
+            Console.WriteLine($"Search '{directoryPath}' completed in {elapsedMs} ms");
         }
     }
 }
