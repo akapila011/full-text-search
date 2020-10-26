@@ -45,14 +45,6 @@ namespace full_text_search
             if (args.Length != NoOfArgs) {
                 throw new ArgumentException($"Program must be started with {NoOfArgs} arguments.");
             }
-            // string searchTerm = args[0];
-            // string searchPath = args[1];
-            // Console.WriteLine($"SearchTerm={searchTerm}, SearchPath={searchPath}");
-            //
-            // List<Document> documents = XmlLoader.LoadDocumentsFromXmlList(searchPath, "doc");
-            //
-            // TextSearch textSearch = new TextSearch(searchTerm, documents);
-            // textSearch.search();
         }
     }
 }
