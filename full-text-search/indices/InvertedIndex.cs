@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using full_text_search.dataloader;
 using full_text_search.models;
+using full_text_search.utilities;
 
 namespace full_text_search.indices {
     
@@ -27,12 +28,14 @@ namespace full_text_search.indices {
             // TODO: support for json, txt - should have a general reader to parse any document
             foreach (var document in documents) {
                 var words = Array.ConvertAll(document.Text.Split(" "), d => d.ToLower());
+                var tokens = TextUtilities.tokenize(document.Text);
+                tokens = TextUtilities.lowerCaseTokens(tokens);
                 // TODO: need to normalize: lowercase, remove stop words, stemming util func etc
-                foreach (var word in words) {  // TODO: O(n^n), need to find a better way to index
-                    if (!this.index.ContainsKey(word)) {
-                        this.index[word] = new HashSet<string>();
+                foreach (var token in tokens) {  // TODO: O(n^n), need to find a better way to index
+                    if (!this.index.ContainsKey(token)) {
+                        this.index[token] = new HashSet<string>();
                     }
-                    this.index[word].Add(document.ID.ToString());
+                    this.index[token].Add(document.ID.ToString());
                 }
             }
             watch.Stop();
@@ -45,9 +48,10 @@ namespace full_text_search.indices {
             var watch = System.Diagnostics.Stopwatch.StartNew();
             
             HashSet<string> resultDocumentIds = new HashSet<string>();
-            var words = Array.ConvertAll(searchTerm.Split(" "), d => d.ToLower());
-            foreach (var word in words) {
-                if (this.index.TryGetValue(word, out var documentValues)) {
+            var tokens = TextUtilities.tokenize(searchTerm);
+            tokens = TextUtilities.lowerCaseTokens(tokens);
+            foreach (var token in tokens) {
+                if (this.index.TryGetValue(token, out var documentValues)) {
                     resultDocumentIds.UnionWith(documentValues);
                 }
             }
