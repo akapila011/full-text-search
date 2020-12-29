@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
 using full_text_search.cache;
 using full_text_search.exceptions;
@@ -10,6 +11,7 @@ namespace full_text_search.repl {
     public class ReplParser {
 
         public MemoryCache<string, InvertedIndex> invertedIndexCache;
+        private string lastIndexedPath;
 
         public ReplParser(MemoryCache<string, InvertedIndex> invertedIndexCache) {
             this.invertedIndexCache = invertedIndexCache;
@@ -32,6 +34,9 @@ namespace full_text_search.repl {
                 case ReplCommandConstants.HELP:
                     this.handleHelpCommand(tokens);
                     break;
+                case ReplCommandConstants.INDEX:
+                    this.handleIndexCommand(tokens);
+                    break;
                 case ReplCommandConstants.LOAD:
                     this.handleLoadCommand(tokens);
                     break;
@@ -48,37 +53,68 @@ namespace full_text_search.repl {
             var helpText = new StringBuilder("Full text search allows for indexing of directories and searching through " +
                                              "text documents within those directories. Usage:\n");
             helpText.Append(
-                "\n-Load - allows for loading a directory with text files and indexes contents for search. " +
+                "\n-Index - allows for loading a directory/file with files in order to index contents for searching. " +
                 "Use: '>> load path/to/dir'");
             helpText.Append(
+                "\n-Load - Load an already built index for searching. " +
+                "Use: '>> load path/to/index.txt'");
+            helpText.Append(
                 "\n-Search - searches a previously loaded & indexed directory for the search term. " +
-                "Use: '>> search search_word path/to/dir'");
+                "Uses last loaded/indexed directory/file. " +
+                "Use: '>> search search_word");
             helpText.Append(
                 "\n-Exit - Exit this program. " +
                 "Use: '>> exit'");
             Console.WriteLine(helpText);
         }
-        private void handleLoadCommand(string[] tokens) {  // TODO: tokens for force refresh (currently on), walking dir to child files
+        
+        private void handleIndexCommand(string[] tokens) {
             var watch = System.Diagnostics.Stopwatch.StartNew();
             if (tokens.Length < 2) {
-                throw new ArgumentException("No path provided for directory indexing.");
+                throw new ArgumentException("No path provided for indexing.");
             }
 
-            var directoryPath = tokens[1];
-            var directoryPathHash = HashUtilities.CreateMD5Hash(directoryPath);
-            Console.WriteLine($"directoryPathHash = {directoryPathHash}");
+            var path = tokens[1];
+            var pathHash = HashUtilities.CreateMD5Hash(path);
+            Console.WriteLine($"pathHash = {pathHash}");
             // if (!System.IO.Directory.Exists(directoryPath)) {
             //     throw new ArgumentException($"The path '{directoryPath}' does not exist.");
             // }
-            Console.WriteLine($"Indexing directory '{directoryPath}' started at {DateTime.Now}");
-            var invertedIndex = new InvertedIndex(directoryPath, directoryPathHash);
+            Console.WriteLine($"Indexing path '{path}' started at {DateTime.Now}");
+            var invertedIndex = new InvertedIndex(path, pathHash);
             invertedIndex.BuildIndex();
 
-            this.invertedIndexCache.set(directoryPathHash, invertedIndex);  // save to memory, force overwrite
+            this.invertedIndexCache.set(invertedIndex.MD5, invertedIndex);  // save to memory, force overwrite
+            this.lastIndexedPath = invertedIndex.Path;
+
+            var savePath = $"{pathHash}.txt";
+            FileUtilities.SerializeInvertedIndex(savePath, invertedIndex);
+            Console.WriteLine($"Index written to '{savePath}'");
             
             watch.Stop();
             var elapsedMs = watch.ElapsedMilliseconds;
-            Console.WriteLine($"Indexed directory '{directoryPath}' in {elapsedMs} ms");
+            Console.WriteLine($"Indexed Path '{path}' in {elapsedMs} ms");
+        }
+        
+        private void handleLoadCommand(string[] tokens) {  // TODO: tokens for force refresh (currently on), walking dir to child files
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            if (tokens.Length < 2) {
+                throw new ArgumentException("No path provided for loading index.");
+            }
+
+            var indexPath = tokens[1].Replace("'", String.Empty).Replace("\"", String.Empty);
+            if (!File.Exists(indexPath)) {
+                throw new ArgumentException($"Index '{indexPath}' does not exist.");
+            }
+
+            var invertedIndex = FileUtilities.DeserializeInvertedIndex(indexPath);
+            this.invertedIndexCache.set(invertedIndex.MD5, invertedIndex);  // save to memory, force overwrite
+            this.lastIndexedPath = invertedIndex.Path;
+            
+            
+            watch.Stop();
+            var elapsedMs = watch.ElapsedMilliseconds;
+            Console.WriteLine($"Loaded index '{indexPath}' in {elapsedMs} ms");
         }
         
         private void handleSearchCommand(string[] tokens) {
@@ -88,22 +124,31 @@ namespace full_text_search.repl {
                 throw new ArgumentException("No search term provided while searching");
             }
 
-            var searchTerm = tokens[1];  // TODO: will not work for multiple word searches
-            if (tokens.Length < 3) {
-                throw new ArgumentException("No directory path provided for search");
-            }
-            var directoryPath = tokens[2];
-            var directoryPathHash = HashUtilities.CreateMD5Hash(directoryPath);
+            var searchTerm = String.Join(" ", tokens, 1, tokens.Length - 1);
+            Console.WriteLine($"Searching '{searchTerm}' in {this.lastIndexedPath}");
+            // if (tokens.Length < 3) {
+            //     throw new ArgumentException("No directory path provided for search");
+            // }
+            // var directoryPath = tokens[2];
+            var directoryPathHash = HashUtilities.CreateMD5Hash(this.lastIndexedPath);
 
             var invertedIndex = this.invertedIndexCache.get(directoryPathHash);
-            Console.WriteLine($"directoryPathHash = {directoryPathHash}, invertedIndex != null {invertedIndex!=null} ");
+            //Console.WriteLine($"directoryPathHash = {directoryPathHash}, invertedIndex != null {invertedIndex!=null} ");
             if (invertedIndex != null) {
-                invertedIndex?.search(searchTerm);
+                var results = invertedIndex?.search(searchTerm);
+                var matchingDocuments = new List<string>(); // filename (token) - path
+                foreach (var result in results) {
+                    matchingDocuments.AddRange(result.getStringResult());
+                }
+
+                foreach (var matchingDocument in matchingDocuments) {
+                    Console.WriteLine($" - {matchingDocument}");
+                }
             }
             // TODO: load if not indexed (with option)
             watch.Stop();
             var elapsedMs = watch.ElapsedMilliseconds;
-            Console.WriteLine($"Search '{directoryPath}' completed in {elapsedMs} ms");
+            Console.WriteLine($"Search '{lastIndexedPath}' completed in {elapsedMs} ms");
         }
     }
 }

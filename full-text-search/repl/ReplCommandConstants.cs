@@ -4,6 +4,7 @@
         public const string HELP = "help";
         public const string EXIT = "exit";
         public const string LOAD = "load";
+        public const string INDEX = "index";
         public const string SEARCH = "search";
         
         // Prompts
