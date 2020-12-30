@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using full_text_search.cache;
+using full_text_search.configuration;
 using full_text_search.exceptions;
 using full_text_search.indices;
 using full_text_search.utilities;
@@ -10,11 +11,18 @@ using full_text_search.utilities;
 namespace full_text_search.repl {
     public class ReplParser {
 
-        public MemoryCache<string, InvertedIndex> invertedIndexCache;
+        private Configuration configuration;
+        private MemoryCache<string, InvertedIndex> invertedIndexCache;
+        private FileUtilities fileUtilities;
+        
         private string lastIndexedPath;
 
-        public ReplParser(MemoryCache<string, InvertedIndex> invertedIndexCache) {
+        public ReplParser(Configuration configuration,
+            MemoryCache<string, InvertedIndex> invertedIndexCache,
+            FileUtilities fileUtilities) {
+            this.configuration = configuration;
             this.invertedIndexCache = invertedIndexCache;
+            this.fileUtilities = fileUtilities;
         }
 
         public void execute(string line) {
@@ -77,18 +85,15 @@ namespace full_text_search.repl {
             var path = tokens[1];
             var pathHash = HashUtilities.CreateMD5Hash(path);
             Console.WriteLine($"pathHash = {pathHash}");
-            // if (!System.IO.Directory.Exists(directoryPath)) {
-            //     throw new ArgumentException($"The path '{directoryPath}' does not exist.");
-            // }
             Console.WriteLine($"Indexing path '{path}' started at {DateTime.Now}");
             var invertedIndex = new InvertedIndex(path, pathHash);
-            invertedIndex.BuildIndex();
+            invertedIndex.BuildIndex(fileUtilities.GetIndexableFilePaths(path, this.configuration.AllowedExtensions));
 
             this.invertedIndexCache.set(invertedIndex.MD5, invertedIndex);  // save to memory, force overwrite
             this.lastIndexedPath = invertedIndex.Path;
 
             var savePath = $"{pathHash}.txt";
-            FileUtilities.SerializeInvertedIndex(savePath, invertedIndex);
+            this.fileUtilities.SerializeInvertedIndex(savePath, invertedIndex);
             Console.WriteLine($"Index written to '{savePath}'");
             
             watch.Stop();
@@ -107,7 +112,7 @@ namespace full_text_search.repl {
                 throw new ArgumentException($"Index '{indexPath}' does not exist.");
             }
 
-            var invertedIndex = FileUtilities.DeserializeInvertedIndex(indexPath);
+            var invertedIndex = this.fileUtilities.DeserializeInvertedIndex(indexPath);
             this.invertedIndexCache.set(invertedIndex.MD5, invertedIndex);  // save to memory, force overwrite
             this.lastIndexedPath = invertedIndex.Path;
             
@@ -119,33 +124,22 @@ namespace full_text_search.repl {
         
         private void handleSearchCommand(string[] tokens) {
             var watch = System.Diagnostics.Stopwatch.StartNew();
-            // TODO: currently expecting search a directory, should be possible to recursively index, save paths indexed and do a global search
             if (tokens.Length < 2) {
                 throw new ArgumentException("No search term provided while searching");
             }
 
             var searchTerm = String.Join(" ", tokens, 1, tokens.Length - 1);
             Console.WriteLine($"Searching '{searchTerm}' in {this.lastIndexedPath}");
-            // if (tokens.Length < 3) {
-            //     throw new ArgumentException("No directory path provided for search");
-            // }
-            // var directoryPath = tokens[2];
             var directoryPathHash = HashUtilities.CreateMD5Hash(this.lastIndexedPath);
 
             var invertedIndex = this.invertedIndexCache.get(directoryPathHash);
-            //Console.WriteLine($"directoryPathHash = {directoryPathHash}, invertedIndex != null {invertedIndex!=null} ");
             if (invertedIndex != null) {
-                var results = invertedIndex?.search(searchTerm);
-                var matchingDocuments = new List<string>(); // filename (token) - path
+                var results = invertedIndex?.Search(searchTerm);
                 foreach (var result in results) {
-                    matchingDocuments.AddRange(result.getStringResult());
-                }
-
-                foreach (var matchingDocument in matchingDocuments) {
-                    Console.WriteLine($" - {matchingDocument}");
+                    Console.WriteLine($" - {result}");
                 }
             }
-            // TODO: load if not indexed (with option)
+            
             watch.Stop();
             var elapsedMs = watch.ElapsedMilliseconds;
             Console.WriteLine($"Search '{lastIndexedPath}' completed in {elapsedMs} ms");

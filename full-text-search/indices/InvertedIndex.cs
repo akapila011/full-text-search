@@ -9,18 +9,21 @@ using full_text_search.utilities;
 namespace full_text_search.indices {
     
     [Serializable]
-    public class InvertedIndex { // TODO: use generics later with interfaces
+    public class InvertedIndex {
 
+        private const uint serializeVersion = 1;
+        
         public string Path { get; private set; }  // directory path for now, allow file path and extensions parsing options later
         public string MD5 { get; private set; }
         public string Alias { get; private set; }
         private Dictionary<string, HashSet<string>> index; // token: [document id's]
-        private IList<string> allowedExtensions = new List<string> { "txt", "csv", "cs", "xml"};
+        private Dictionary<string, string> idMapping;  // document id: less space consuming value like hash
 
         public InvertedIndex(string path, string md5, string alias = null) {
             this.Path = path;
             this.MD5 = md5;
             this.index = new Dictionary<string, HashSet<string>>();
+            this.idMapping = new Dictionary<string, string>();
             if (!string.IsNullOrWhiteSpace(alias)) {
                 this.Alias = alias;
             }
@@ -28,25 +31,11 @@ namespace full_text_search.indices {
 
         public override string ToString() {
             return $"InvertedIndex(Path={this.Path},MD5={this.MD5},Alias={this.Alias}," +
-                   $"index={this.index.Count},allowedExtensions={this.allowedExtensions.Count})";
+                   $"index={this.index.Count})";
         }
 
-        public int BuildIndex() {
+        public int BuildIndex(IList<string> validFilePaths) {
             var watch = System.Diagnostics.Stopwatch.StartNew();
-            IList<string> validFilePaths = new List<string>();
-            FileAttributes attr = File.GetAttributes(this.Path);
-            if (attr.HasFlag(FileAttributes.Directory)) {
-                validFilePaths = FileUtilities.GetValidFilePaths(this.Path, allowedExtensions); // TODO: Use DI for file work
-            }
-            else {
-                for (int i=0; i<allowedExtensions.Count; i++) {
-                    var extension = allowedExtensions[i];
-                    if (this.Path.EndsWith(extension)) {
-                        validFilePaths.Add(this.Path);
-                        i = allowedExtensions.Count; // don't continue checking other extensions for a path
-                    }
-                }
-            }
 
             if (validFilePaths.Count == 0) {
                 Console.WriteLine($"No index built for '{this.Path}', no valid files found.");
@@ -58,11 +47,16 @@ namespace full_text_search.indices {
                 foreach (var line in document.LoadFileLine()) {
                     var tokens = TextUtilities.tokenize(line);
                     tokens = TextUtilities.lowerCaseTokens(tokens);
-                    foreach (var token in tokens) {  // TODO: O(n^n), need to find a better way to index
+                    foreach (var token in tokens) {
                         if (!this.index.ContainsKey(token)) {
                             this.index[token] = new HashSet<string>();
                         }
-                        this.index[token].Add(document.ID);
+
+                        var idHash = HashUtilities.CreateMD5Hash(document.ID); 
+                        if (!this.idMapping.ContainsKey(idHash)) {
+                            this.idMapping[idHash] = document.ID;
+                        }
+                        this.index[token].Add(idHash);
                     }
                 }
             }
@@ -72,7 +66,7 @@ namespace full_text_search.indices {
             return this.index.Count;
         }
 
-        public List<IndexResult> search(string searchTerm) {
+        public IList<SearchResult> Search(string searchTerm) {
             var watch = System.Diagnostics.Stopwatch.StartNew();
             var results = new List<IndexResult>();
             
@@ -80,15 +74,20 @@ namespace full_text_search.indices {
             var tokens = TextUtilities.tokenize(searchTerm);
             tokens = TextUtilities.lowerCaseTokens(tokens);
             foreach (var token in tokens) {
-                if (this.index.TryGetValue(token, out var documentValues)) {
-                    resultDocumentIds.UnionWith(documentValues);
-                    results.Add(new IndexResult(token, documentValues.ToList()));
+                if (this.index.TryGetValue(token, out var documentCompressedIds)) {
+                    var documentIds = new HashSet<string>();
+                    foreach (var documentCompressedId in documentCompressedIds) {
+                        var documentId = this.idMapping[documentCompressedId];
+                        documentIds.Add(documentId);
+                    }
+                    resultDocumentIds.UnionWith(documentIds);
+                    results.Add(new IndexResult(token, documentIds.ToList()));
                 }
             }
             watch.Stop();
             var elapsedMs = watch.ElapsedMilliseconds;
             Console.WriteLine($"Search for '{searchTerm}' returned {resultDocumentIds.Count} results {elapsedMs} ms");
-            return results; // TODO: need to do post processing so docs that have both words or so get high priority
+            return SearchResultProcessor.ProcessResults(results);
         }
     }
 }

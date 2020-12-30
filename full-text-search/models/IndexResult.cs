@@ -2,9 +2,8 @@
 
 namespace full_text_search.models {
     public class IndexResult {
-
-        private string token;
-        private List<string> ids;
+        public string token { get; private set; }
+        public List<string> ids { get; private set; }
 
         public IndexResult(string token, List<string> ids) {
             this.token = token;
