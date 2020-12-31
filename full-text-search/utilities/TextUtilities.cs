@@ -17,6 +17,20 @@ namespace full_text_search.utilities {
             return tokens.Select(s => s.ToLowerInvariant()).ToArray();
         }
         
+        public static string[] cleanTokensOfSpecialChars(string[] tokens) {
+            for (int i = 0; i < tokens.Length; i++) {
+                tokens[i] = tokens[i]
+                    .Replace("'", String.Empty)
+                    .Replace("\"", String.Empty)
+                    .Replace(".", String.Empty)
+                    .Replace(",", String.Empty)
+                    .Replace("!", String.Empty)
+                    .Replace("?", String.Empty)
+                    .Replace(";", String.Empty);
+            }
+            return tokens;
+        }
+        
         public static string[] removeTokens(string[] tokens, ISet<string> tokensToRemove) {
             return tokens.Except(tokensToRemove).ToArray();
         }

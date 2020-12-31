@@ -12,6 +12,7 @@ namespace full_text_search.configuration {
 
         public uint InvertedIndexCacheSize { get; private set; }
         public IList<string> AllowedExtensions { get; private set; }
+        public ISet<string> StopWords { get; private set; }
         
         public Configuration() {
             var builder = new ConfigurationBuilder()
@@ -27,6 +28,8 @@ namespace full_text_search.configuration {
             this.InvertedIndexCacheSize = Convert.ToUInt32(Int32.Parse(this.configuration["InvertedIndexCacheSize"]));
             this.AllowedExtensions = new List<string>();
             this.configuration.GetSection("AllowedExtensions").Bind(this.AllowedExtensions);
+            this.StopWords = new HashSet<string>();
+            this.configuration.GetSection("StopWords").Bind(this.StopWords);
             
             this.validateConfigValues();
         }
@@ -35,9 +38,11 @@ namespace full_text_search.configuration {
             if (InvertedIndexCacheSize < 1 || this.InvertedIndexCacheSize > 1000) {
                 throw new ArgumentException("Configuration:InvertedIndexCacheSize must be between 1 and 1000");
             }
-
             if (this.AllowedExtensions == null || this.AllowedExtensions.Count == 0) {
                 throw new ArgumentException("Configuration:AllowedExtensions must have at least 1 valid extension");
+            }
+            if (this.StopWords == null || this.StopWords.Count == 0) {
+                throw new ArgumentException("Configuration:StopWords must have at least 1 stop word");
             }
         }
     }

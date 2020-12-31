@@ -49,10 +49,6 @@ namespace full_text_search
                     break;
                 }
             } while (true);
-
-            if (args.Length != NoOfArgs) {
-                throw new ArgumentException($"Program must be started with {NoOfArgs} arguments.");
-            }
         }
     }
 }

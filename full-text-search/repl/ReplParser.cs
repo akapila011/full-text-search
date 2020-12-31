@@ -58,11 +58,11 @@ namespace full_text_search.repl {
         }
 
         private void handleHelpCommand(string[] tokens) {
-            var helpText = new StringBuilder("Full text search allows for indexing of directories and searching through " +
-                                             "text documents within those directories. Usage:\n");
+            var helpText = new StringBuilder("Full text search allows for indexing of file and directories for faster searches in future." +
+                                             " Usage:\n");
             helpText.Append(
                 "\n-Index - allows for loading a directory/file with files in order to index contents for searching. " +
-                "Use: '>> load path/to/dir'");
+                "Use: '>> load path/to/dir_or_file'");
             helpText.Append(
                 "\n-Load - Load an already built index for searching. " +
                 "Use: '>> load path/to/index.txt'");
@@ -82,7 +82,7 @@ namespace full_text_search.repl {
                 throw new ArgumentException("No path provided for indexing.");
             }
 
-            var path = tokens[1];
+            var path = tokens[1].Replace("'", String.Empty).Replace("\"", String.Empty);
             var pathHash = HashUtilities.CreateMD5Hash(path);
             Console.WriteLine($"pathHash = {pathHash}");
             Console.WriteLine($"Indexing path '{path}' started at {DateTime.Now}");
@@ -119,13 +119,16 @@ namespace full_text_search.repl {
             
             watch.Stop();
             var elapsedMs = watch.ElapsedMilliseconds;
-            Console.WriteLine($"Loaded index '{indexPath}' in {elapsedMs} ms");
+            Console.WriteLine($"Loaded index '{indexPath}' last indexed at {invertedIndex.IndexedTime} in {elapsedMs} ms");
         }
         
         private void handleSearchCommand(string[] tokens) {
             var watch = System.Diagnostics.Stopwatch.StartNew();
             if (tokens.Length < 2) {
                 throw new ArgumentException("No search term provided while searching");
+            }
+            if (string.IsNullOrEmpty(this.lastIndexedPath)) {
+                throw new ArgumentException("No load index. Try use the Index command or Load command before searching.");
             }
 
             var searchTerm = String.Join(" ", tokens, 1, tokens.Length - 1);
@@ -142,7 +145,7 @@ namespace full_text_search.repl {
             
             watch.Stop();
             var elapsedMs = watch.ElapsedMilliseconds;
-            Console.WriteLine($"Search '{lastIndexedPath}' completed in {elapsedMs} ms");
+            Console.WriteLine($"Search '{lastIndexedPath}' (last indexed at {invertedIndex?.IndexedTime}) completed in {elapsedMs} ms");
         }
     }
 }
