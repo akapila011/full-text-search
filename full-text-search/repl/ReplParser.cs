@@ -87,7 +87,8 @@ namespace full_text_search.repl {
             Console.WriteLine($"pathHash = {pathHash}");
             Console.WriteLine($"Indexing path '{path}' started at {DateTime.Now}");
             var invertedIndex = new InvertedIndex(path, pathHash);
-            invertedIndex.BuildIndex(fileUtilities.GetIndexableFilePaths(path, this.configuration.AllowedExtensions));
+            var filepaths = fileUtilities.GetIndexableFilePaths(path, this.configuration.AllowedExtensions);
+            invertedIndex.BuildIndex(filepaths);
 
             this.invertedIndexCache.set(invertedIndex.MD5, invertedIndex);  // save to memory, force overwrite
             this.lastIndexedPath = invertedIndex.Path;

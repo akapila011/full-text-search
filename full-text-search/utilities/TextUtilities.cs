@@ -26,7 +26,13 @@ namespace full_text_search.utilities {
                     .Replace(",", String.Empty)
                     .Replace("!", String.Empty)
                     .Replace("?", String.Empty)
-                    .Replace(";", String.Empty);
+                    .Replace(";", String.Empty)
+                    .Replace("{", String.Empty)
+                    .Replace("}", String.Empty)
+                    .Replace("(", String.Empty)
+                    .Replace(")", String.Empty)
+                    .Replace("[", String.Empty)
+                    .Replace("]", String.Empty);
             }
             return tokens;
         }

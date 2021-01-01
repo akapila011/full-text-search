@@ -11,7 +11,7 @@ namespace full_text_search.indices {
     [Serializable]
     public class InvertedIndex {
 
-        private const uint serializeVersion = 2;
+        private const uint serializeVersion = 3;
         
         public string Path { get; private set; }  // directory path for now, allow file path and extensions parsing options later
         public string MD5 { get; private set; }
@@ -38,46 +38,62 @@ namespace full_text_search.indices {
                    $"index={this.index.Count},compressed={this.compressed})";
         }
 
-        public int BuildIndex(IList<string> validFilePaths, ISet<string> stopWords = null) {
+        public int BuildIndex(IList<(string filepath, bool indexContent)> filepaths, ISet<string> stopWords = null) {
             var watch = System.Diagnostics.Stopwatch.StartNew();
 
-            if (validFilePaths.Count == 0) {
-                Console.WriteLine($"No index built for '{this.Path}', no valid files found.");
+            if (filepaths.Count == 0) {
+                Console.WriteLine($"No index built for '{this.Path}', no files found.");
             }
-
             
             var idCounter = new Dictionary<string, uint>();
-            foreach (var filepath in validFilePaths) {
+            var indexContentCount = 0;
+            foreach (var row in filepaths) {
+                var filepath = row.filepath;
+                var indexContent = row.indexContent;
                 var filename = System.IO.Path.GetFileName(filepath);
-                var document = new BasicFileDocument(filepath, filename, filepath);
-                foreach (var line in document.LoadFileLine()) {
-                    var tokens = TextUtilities.tokenize(line);
-                    tokens = TextUtilities.lowerCaseTokens(tokens);
-                    tokens = TextUtilities.cleanTokensOfSpecialChars(tokens);
-                    if (stopWords != null) {
-                        tokens = TextUtilities.removeTokens(tokens, stopWords);
-                    }
-                    foreach (var token in tokens) {
-                        if (!this.index.ContainsKey(token)) {
-                            this.index[token] = new HashSet<string>();
-                        }
-                        this.index[token].Add(document.ID);
-
-                        if (!idCounter.ContainsKey(document.ID)) {
-                            idCounter[document.ID] = 0;
-                        }
-                        idCounter[document.ID]++;
+                
+                if (indexContent) {
+                    indexContentCount++;
+                    var document = new BasicFileDocument(filepath, filename, filepath);
+                    foreach (var line in document.LoadFileLine()) {
+                        this.indexTextLine(line, document.ID, ref idCounter, stopWords);
                     }
                 }
+                // index filename
+                var filenameParts = filename.Split(".");
+                var filenameWithoutExtension = String.Join(" ", filenameParts, 0, filenameParts.Length - 1);
+                this.indexTextLine(filenameWithoutExtension, filepath, ref idCounter, stopWords);
             }
+
             var compressed = setIndexCompression(idCounter);
             Console.WriteLine($"Index compressed on build {compressed}");
             this.IndexedTime = DateTime.Now;
             
             watch.Stop();
             var elapsedMs = watch.ElapsedMilliseconds;
-            Console.WriteLine($"Built index for '{this.Path}', {this.index.Count} indexed words in {elapsedMs} ms");
+            Console.WriteLine($"Built index for '{this.Path}', {this.index.Count} indexed words " +
+                              $"(filesIndexed={indexContentCount}/{filepaths.Count}) in {elapsedMs} ms");
             return this.index.Count;
+        }
+
+        private void indexTextLine(string text, string id, ref Dictionary<string, uint> idCounter, ISet<string> stopWords = null) {
+            var tokens = TextUtilities.tokenize(text);
+            tokens = TextUtilities.lowerCaseTokens(tokens);
+            tokens = TextUtilities.cleanTokensOfSpecialChars(tokens);
+            if (stopWords != null) {
+                tokens = TextUtilities.removeTokens(tokens, stopWords);
+            }
+            foreach (var token in tokens) {
+                if (!this.index.ContainsKey(token)) {
+                    this.index[token] = new HashSet<string>();
+                }
+                this.index[token].Add(id);
+
+                if (!idCounter.ContainsKey(id)) {
+                    idCounter[id] = 0;
+                }
+                idCounter[id]++;
+            }
         }
 
         public IList<SearchResult> Search(string searchTerm) {
@@ -146,15 +162,22 @@ namespace full_text_search.indices {
             }
             
             // So if we need to compress we need to update the index with hash values
+            var idNo = 0;  // counter to map a id/path to a less spacing consuming long number
+            var idToIdNoMapping = new Dictionary<string, string>();
             foreach (var entry in this.index) {
                 var ids = entry.Value;
                 var compressedIds = new HashSet<string>(ids.Count);
                 foreach (var id in ids) {
-                    var idHash = HashUtilities.CreateMD5Hash(id); 
-                    if (!this.idMapping.ContainsKey(idHash)) {
-                        this.idMapping[idHash] = id;
+                    var idNoToUse = idNo.ToString();
+                    if (idToIdNoMapping.ContainsKey(id)) {
+                        idNoToUse = idToIdNoMapping[id];
                     }
-                    compressedIds.Add(idHash);
+                    else {
+                        idToIdNoMapping[id] = idNoToUse;
+                        idNo++;
+                    }
+                    this.idMapping[idNoToUse] = id;
+                    compressedIds.Add(idNoToUse);
                 }
                 this.index[entry.Key].Clear();
                 this.index[entry.Key].UnionWith(compressedIds);

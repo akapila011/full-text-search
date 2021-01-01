@@ -11,55 +11,45 @@ namespace full_text_search.utilities {
     public class FileUtilities {
         
         /// <summary>
-        /// Give path ro dir or to file return a list of file paths
-        /// that have files with the allowed extensions
+        /// Give path to dir or to file return a list of file paths
+        /// recursive within the dir and the flag on whether contents need to be indexed
         /// </summary>
         /// <param name="path">path to dir/file</param>
         /// <param name="allowedExtensions">e.g. txt,csv,json</param>
-        /// <returns></returns>
-        public IList<string> GetIndexableFilePaths(string path, IList<string> allowedExtensions) {
-            IList<string> validFilePaths = new List<string>();
+        /// <returns>tuple of filepaths to read contents for indexing (with flag to indexContent when extension is correct)</returns>
+        public IList<(string filepath, bool indexContent)> GetIndexableFilePaths(string path, IList<string> allowedExtensions) {
+            IList<(string filepath, bool indexContent)> filepaths = new List<(string filepath, bool indexContent)>();
+            
             FileAttributes attr = File.GetAttributes(path);
             if (attr.HasFlag(FileAttributes.Directory)) {
-                validFilePaths = this.GetValidFilePaths(path, allowedExtensions);
+                filepaths = this.GetValidFilePaths(path, allowedExtensions);
             }
             else {
-                for (int i=0; i<allowedExtensions.Count; i++) {
-                    var extension = allowedExtensions[i];
-                    if (path.EndsWith(extension)) {
-                        validFilePaths.Add(path);
-                        i = allowedExtensions.Count; // don't continue checking other extensions for a path
-                    }
-                }
+                var filepathsIndex = -1;
+                this.RecordFilepathAndCheckIndexContent(path, ref filepaths, ref filepathsIndex, allowedExtensions);
             }
 
-            return validFilePaths;
+            return filepaths;
         }
         
         /// <summary>
-        /// Given a directory recursively find file with a valid extension
+        /// Given a directory recursively list all filepaths and valid for files with
+        /// an allowed extension indicating contents can be indexed
         /// </summary>
         /// <param name="directoryPath">e.g C:\Users</param>
         /// <param name="allowedExtensions">e.g txt,csv</param>
-        private IList<string> GetValidFilePaths(string directoryPath, IList<string> allowedExtensions)
+        private IList<(string filepath, bool indexContent)> GetValidFilePaths(string directoryPath, IList<string> allowedExtensions)
         {
-            var validFilePaths = new List<string>();
+            IList<(string filepath, bool indexContent)> filepaths = new List<(string filepath, bool indexContent)>();
+            var filepathsIndex = -1;
             try
             {
-                foreach (string f in Directory.GetFiles(directoryPath))
-                {
-                    for (int i=0; i<allowedExtensions.Count; i++) {
-                        var extension = allowedExtensions[i];
-                        if (f.EndsWith(extension)) {
-                            validFilePaths.Add(f);
-                            i = allowedExtensions.Count; // don't continue checking other extensions for a path
-                        }
-                    }
+                foreach (string filepath in Directory.GetFiles(directoryPath)) {
+                    this.RecordFilepathAndCheckIndexContent(filepath, ref filepaths, ref filepathsIndex, allowedExtensions);
                 }
-
                 foreach (string d in Directory.GetDirectories(directoryPath))
                 {
-                    validFilePaths.AddRange(GetValidFilePaths(d, allowedExtensions));
+                    ((List<(string filepath, bool indexContent)>)filepaths).AddRange(GetValidFilePaths(d, allowedExtensions));
                 }
             }
             catch (Exception exception)
@@ -67,7 +57,24 @@ namespace full_text_search.utilities {
                 Console.WriteLine(exception.Message);
             }
 
-            return validFilePaths;
+            return filepaths;
+        }
+
+        private void RecordFilepathAndCheckIndexContent(
+            string filepath,
+            ref IList<(string filepath, bool indexContent)> filepaths,
+            ref int filepathsIndex,
+            IList<string> allowedExtensions) {
+
+            filepaths.Add((filepath, false));
+            filepathsIndex++;
+            for (int i=0; i<allowedExtensions.Count; i++) {
+                var extension = allowedExtensions[i];
+                if (filepath.EndsWith(extension)) {
+                    filepaths[filepathsIndex] = (filepath, true);
+                    i = allowedExtensions.Count; // don't continue checking other extensions for a path
+                }
+            }
         }
 
         public string SerializeInvertedIndex(string savePath, InvertedIndex index) {
