@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using full_text_search.dataloader;
 using full_text_search.models;
 using full_text_search.utilities;
@@ -11,13 +12,14 @@ namespace full_text_search.indices {
     [Serializable]
     public class InvertedIndex {
 
-        private const uint serializeVersion = 3;
+        private const uint serializeVersion = 4;
         
         public string Path { get; private set; }  // directory path for now, allow file path and extensions parsing options later
         public string MD5 { get; private set; }
         public string Alias { get; private set; }
         public DateTime IndexedTime { get; private set; }
         private bool compressed;
+        private string checksum;
         private Dictionary<string, HashSet<string>> index; // token: [document id's]
         private Dictionary<string, string> idMapping;  // document id: less space consuming value like hash
 
@@ -35,10 +37,11 @@ namespace full_text_search.indices {
 
         public override string ToString() {
             return $"InvertedIndex(Path={this.Path},MD5={this.MD5},Alias={this.Alias},IndexedTime={IndexedTime}," +
-                   $"index={this.index.Count},compressed={this.compressed})";
+                   $"indexCount={this.index.Count},checksum={this.checksum},compressed={this.compressed})";
         }
 
-        public int BuildIndex(IList<(string filepath, bool indexContent)> filepaths, ISet<string> stopWords = null) {
+        public int BuildIndex(IList<(string filepath, bool indexContent)> filepaths, FileUtilities fileUtilities, 
+            ISet<string> stopWords = null) {
             var watch = System.Diagnostics.Stopwatch.StartNew();
 
             if (filepaths.Count == 0) {
@@ -47,7 +50,7 @@ namespace full_text_search.indices {
             
             var idCounter = new Dictionary<string, uint>();
             var indexContentCount = 0;
-            foreach (var row in filepaths) {
+            foreach (var row in filepaths) { // NOTE: filepaths order of listing might be important for checksum, test before using a different data structure
                 var filepath = row.filepath;
                 var indexContent = row.indexContent;
                 var filename = System.IO.Path.GetFileName(filepath);
@@ -63,6 +66,11 @@ namespace full_text_search.indices {
                 var filenameParts = filename.Split(".");
                 var filenameWithoutExtension = String.Join(" ", filenameParts, 0, filenameParts.Length - 1);
                 this.indexTextLine(filenameWithoutExtension, filepath, ref idCounter, stopWords);
+                // checksum contents
+                var contentHash = fileUtilities.HashFileContentMd5(filepath);
+                var pathHash = HashUtilities.CreateMD5Hash(filepath);
+                var combinedHash = HashUtilities.CreateMD5Hash(contentHash + pathHash);
+                this.checksum = HashUtilities.CreateMD5Hash(this.checksum + combinedHash); 
             }
 
             var compressed = setIndexCompression(idCounter);

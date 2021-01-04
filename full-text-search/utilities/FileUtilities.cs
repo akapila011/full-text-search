@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
+using System.Security.Cryptography;
+using System.Text;
 using full_text_search.indices;
 
 namespace full_text_search.utilities {
@@ -77,6 +79,16 @@ namespace full_text_search.utilities {
             }
         }
 
+        public string HashFileContentMd5(string filepath) {
+            using (var md5 = MD5.Create())
+            {
+                using (var stream = File.OpenRead(filepath))
+                {
+                    var hash = md5.ComputeHash(stream);
+                    return BitConverter.ToString(hash).Replace("-", "").ToLower();
+                }
+            }
+        }
         public string SerializeInvertedIndex(string savePath, InvertedIndex index) {
             Console.WriteLine($"Serializing: {index}");
             IFormatter formatter = new BinaryFormatter();

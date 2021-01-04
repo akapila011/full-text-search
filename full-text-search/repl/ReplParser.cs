@@ -88,7 +88,7 @@ namespace full_text_search.repl {
             Console.WriteLine($"Indexing path '{path}' started at {DateTime.Now}");
             var invertedIndex = new InvertedIndex(path, pathHash);
             var filepaths = fileUtilities.GetIndexableFilePaths(path, this.configuration.AllowedExtensions);
-            invertedIndex.BuildIndex(filepaths);
+            invertedIndex.BuildIndex(filepaths, fileUtilities, stopWords: this.configuration.StopWords);
 
             this.invertedIndexCache.set(invertedIndex.MD5, invertedIndex);  // save to memory, force overwrite
             this.lastIndexedPath = invertedIndex.Path;
@@ -99,7 +99,7 @@ namespace full_text_search.repl {
             
             watch.Stop();
             var elapsedMs = watch.ElapsedMilliseconds;
-            Console.WriteLine($"Indexed Path '{path}' in {elapsedMs} ms");
+            Console.WriteLine($"Indexed Path '{path}' with {filepaths.Count} files in {elapsedMs} ms");
         }
         
         private void handleLoadCommand(string[] tokens) {  // TODO: tokens for force refresh (currently on), walking dir to child files
