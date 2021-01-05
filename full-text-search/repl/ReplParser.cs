@@ -82,13 +82,14 @@ namespace full_text_search.repl {
                 throw new ArgumentException("No path provided for indexing.");
             }
 
-            var path = tokens[1].Replace("'", String.Empty).Replace("\"", String.Empty);
+            var path = String.Join(" ", tokens, 1, tokens.Length - 1)
+                .Replace("'", String.Empty).Replace("\"", String.Empty);
             var pathHash = HashUtilities.CreateMD5Hash(path);
             Console.WriteLine($"pathHash = {pathHash}");
             Console.WriteLine($"Indexing path '{path}' started at {DateTime.Now}");
             var invertedIndex = new InvertedIndex(path, pathHash);
             var filepaths = fileUtilities.GetIndexableFilePaths(path, this.configuration.AllowedExtensions);
-            invertedIndex.BuildIndex(filepaths, fileUtilities, stopWords: this.configuration.StopWords);
+            var indexBuildResult = invertedIndex.BuildIndex(filepaths, fileUtilities, stopWords: this.configuration.StopWords).Result;
 
             this.invertedIndexCache.set(invertedIndex.MD5, invertedIndex);  // save to memory, force overwrite
             this.lastIndexedPath = invertedIndex.Path;
@@ -108,7 +109,8 @@ namespace full_text_search.repl {
                 throw new ArgumentException("No path provided for loading index.");
             }
 
-            var indexPath = tokens[1].Replace("'", String.Empty).Replace("\"", String.Empty);
+            var indexPath = String.Join(" ", tokens, 1, tokens.Length - 1)
+                .Replace("'", String.Empty).Replace("\"", String.Empty);
             if (!File.Exists(indexPath)) {
                 throw new ArgumentException($"Index '{indexPath}' does not exist.");
             }

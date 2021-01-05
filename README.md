@@ -27,8 +27,6 @@ In the REPLY window you can use 3 main commands:
   In future we need a way to count the repeated text length vs what it would be only 
   using number ids + the mapping table. We are using number to map id's/paths so seems 
   it will always be smaller.
- - Handle spaces in Index/Load commands. Currently cannot work with spaces. Need to parse
-  text based of everything after the command.
  - Use a logger (not sure if log file/just console).
  - use async/await. Especially in indexing as it will be very useful for handling
   multiple files indexing, hashing etc
