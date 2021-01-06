@@ -20,8 +20,8 @@ namespace full_text_search.indices {
         public DateTime IndexedTime { get; private set; }
         private bool compressed;
         private string checksum;
-        private Dictionary<string, HashSet<string>> index; // token: [document id's]
-        private Dictionary<string, string> idMapping;  // document id: less space consuming value like hash
+        private IDictionary<string, HashSet<string>> index; // token: [document id's]
+        private IDictionary<string, string> idMapping;  // document id: less space consuming value like hash
 
         public InvertedIndex(string path, string md5, string alias = null) {
             this.Path = path;
@@ -50,6 +50,8 @@ namespace full_text_search.indices {
             
             var idCounter = new Dictionary<string, uint>();
             var indexContentCount = 0;
+            this.index.Clear();
+            this.idMapping.Clear();
             foreach (var row in filepaths) { // NOTE: filepaths order of listing might be important for checksum, test before using a different data structure
                 var filepath = row.filepath;
                 var indexContent = row.indexContent;
