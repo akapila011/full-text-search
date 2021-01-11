@@ -1,9 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Threading.Tasks;
-using full_text_search.dataloader;
 using full_text_search.models;
 using full_text_search.utilities;
 
@@ -12,7 +9,7 @@ namespace full_text_search.indices {
     [Serializable]
     public class InvertedIndex {
 
-        private const uint serializeVersion = 4;
+        private const uint serializeVersion = 5;
         
         public string Path { get; private set; }  // directory path for now, allow file path and extensions parsing options later
         public string MD5 { get; private set; }
@@ -48,26 +45,29 @@ namespace full_text_search.indices {
                 Console.WriteLine($"No index built for '{this.Path}', no files found.");
             }
             
-            var idCounter = new Dictionary<string, uint>();
             var indexContentCount = 0;
             this.index.Clear();
             this.idMapping.Clear();
+            long noOfIds = 0;
+            long lengthOfIds = 0;
             foreach (var row in filepaths) { // NOTE: filepaths order of listing might be important for checksum, test before using a different data structure
                 var filepath = row.filepath;
                 var indexContent = row.indexContent;
                 var filename = System.IO.Path.GetFileName(filepath);
+                var id = filepath;
+                noOfIds++;
                 
                 if (indexContent) {
                     indexContentCount++;
-                    var document = new BasicFileDocument(filepath, filename, filepath);
+                    var document = new BasicFileDocument(id, filename, id);
                     foreach (var line in document.LoadFileLine()) {
-                        this.indexTextLine(line, document.ID, ref idCounter, stopWords);
+                        this.indexTextLine(line, id, ref lengthOfIds, stopWords);
                     }
                 }
                 // index filename
                 var filenameParts = filename.Split(".");
                 var filenameWithoutExtension = String.Join(" ", filenameParts, 0, filenameParts.Length - 1);
-                this.indexTextLine(filenameWithoutExtension, filepath, ref idCounter, stopWords);
+                this.indexTextLine(filenameWithoutExtension, id, ref lengthOfIds, stopWords);
                 // checksum contents
                 var contentHash = fileUtilities.HashFileContentMd5(filepath);
                 var pathHash = HashUtilities.CreateMD5Hash(filepath);
@@ -75,7 +75,7 @@ namespace full_text_search.indices {
                 this.checksum = HashUtilities.CreateMD5Hash(this.checksum + combinedHash); 
             }
 
-            var compressed = setIndexCompression(idCounter);
+            var compressed = setIndexCompression(noOfIds, lengthOfIds);
             Console.WriteLine($"Index compressed on build {compressed}");
             this.IndexedTime = DateTime.Now;
             
@@ -86,7 +86,7 @@ namespace full_text_search.indices {
             return this.index.Count;
         }
 
-        private void indexTextLine(string text, string id, ref Dictionary<string, uint> idCounter, ISet<string> stopWords = null) {
+        private void indexTextLine(string text, string id, ref long lengthOfIds, ISet<string> stopWords = null) {
             var tokens = TextUtilities.tokenize(text);
             tokens = TextUtilities.lowerCaseTokens(tokens);
             tokens = TextUtilities.cleanTokensOfSpecialChars(tokens);
@@ -98,11 +98,7 @@ namespace full_text_search.indices {
                     this.index[token] = new HashSet<string>();
                 }
                 this.index[token].Add(id);
-
-                if (!idCounter.ContainsKey(id)) {
-                    idCounter[id] = 0;
-                }
-                idCounter[id]++;
+                lengthOfIds += id.Length;
             }
         }
 
@@ -130,40 +126,24 @@ namespace full_text_search.indices {
         
         /// <summary>
         /// When building an index, we need to determine if ids/paths per token are repeated
-        /// enough to use a mapping dictionary for compression
+        /// enough to use a mapping dictionary for compression.
+        /// The logic is based on length of id's as is vs length of id's compressed + mapping table
+        /// as this is ensures the data in memory/disk is truly less.
         /// </summary>
-        /// <param name="idCounter">counter of id's to their frequency in the index</param>
-        private bool setIndexCompression(IDictionary<string, uint> idCounter) {
-            // Keep track of duplicate frequencies to know whether we should compress or not
-            // will map frequency of occurence e..g 1 time, 2 times to number of times it has occured for ids/paths
-            var duplicateCounter = new Dictionary<uint, uint> {{1, 0}, {2, 0}, {3, 0}, {4, 0}, {5, 0}};
-            foreach(var entry in idCounter)
-            {
-                var frequency = entry.Value;
-                if (!duplicateCounter.ContainsKey(frequency)) {
-                    duplicateCounter[frequency] = 0;
-                }
-                duplicateCounter[frequency]++;
+        /// <param name="noOfIds">no of ids including duplicates used throughout the index</param>
+        /// <param name="lengthOfIds">sum of lengths of each id in noOfIds</param>
+        /// <returns></returns>
+        private bool setIndexCompression(long noOfIds, long lengthOfIds) {
+            long compressedIdsSize = 0;
+            for (int i = 0; i < noOfIds; i++) {
+                compressedIdsSize += i.ToString().Length;
             }
 
-            var notRepeatedCount = duplicateCounter[1];
-            uint repeatedCount = 0;
-            foreach (var entry in duplicateCounter) {
-                var frequency = entry.Key;
-                var count = entry.Value;
-                if (frequency > 1) {
-                    repeatedCount += count;
-                }
-            }
+            Console.WriteLine($"setIndexCompression noOfIds={noOfIds} lengthOfIds={lengthOfIds} " +
+                              $"compressedIdsSize={compressedIdsSize}");
             
-            Console.WriteLine($"setIndexCompression notRepeated={notRepeatedCount},repeatedCount={repeatedCount} " +
-                              $"1={duplicateCounter[1]},2={duplicateCounter[2]},3={duplicateCounter[3]}," +
-                              $"4={duplicateCounter[4]},5={duplicateCounter[5]}");
-            
-            // TODO: in future we may consider the length of path for repeated vs non-repeated vs hashed lengths
             // Now determine if we should compress
-            if (repeatedCount > notRepeatedCount ||
-                repeatedCount > (notRepeatedCount / 2)) {
+            if (lengthOfIds > compressedIdsSize) {
                 this.compressed = true;
             }
             else {
