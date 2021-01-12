@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Security.Cryptography;
@@ -93,15 +94,20 @@ namespace full_text_search.utilities {
             Console.WriteLine($"Serializing: {index}");
             IFormatter formatter = new BinaryFormatter();
             FileStream stream = null;
+            GZipStream compressor = null;
             try {
                 stream = new FileStream(savePath, FileMode.Create, FileAccess.Write);
-                formatter.Serialize(stream, index);
+                compressor = new GZipStream(stream, CompressionMode.Compress);
+                formatter.Serialize(compressor, index);
             }
             catch (Exception ex) {
                 Console.WriteLine(ex.Message);
                 return null;
             }
             finally {
+                if (compressor != null) {
+                    compressor.Close();
+                }
                 if (stream != null) {
                     stream.Close();
                 }
@@ -114,9 +120,11 @@ namespace full_text_search.utilities {
             InvertedIndex index = null;
             IFormatter formatter = new BinaryFormatter();
             FileStream stream = null;
+            GZipStream decompressor = null;
             try {
                 stream = new FileStream(indexPath, FileMode.Open, FileAccess.Read);
-                index = (InvertedIndex) formatter.Deserialize(stream);
+                decompressor = new GZipStream(stream, CompressionMode.Decompress);
+                index = (InvertedIndex) formatter.Deserialize(decompressor);
                 Console.WriteLine($"Deserialized: {index}");
             }
             catch (Exception ex) {
@@ -124,6 +132,9 @@ namespace full_text_search.utilities {
                 return index;
             }
             finally {
+                if (decompressor != null) {
+                    decompressor.Close();
+                }
                 if (stream != null) {
                     stream.Close();
                 }
